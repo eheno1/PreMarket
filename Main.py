@@ -34,7 +34,7 @@ pdf.ln(10)
 
 # 📉 Closing Prices Table
 pdf.set_font("Arial", 'B', 14)
-pdf.cell(200, 10, txt="📉 Major Indices - Closing Prices", ln=True)
+pdf.cell(200, 10, txt="Major Indices - Closing Prices", ln=True)
 pdf.set_font("Arial", '', 12)
 for name in index_data:
     pdf.cell(200, 10, txt=f"{name}: {index_data[name]['Close']}", ln=True)
@@ -43,7 +43,7 @@ pdf.ln(10)
 
 # 🕘 Opening Prices Table
 pdf.set_font("Arial", 'B', 14)
-pdf.cell(200, 10, txt="🕘 Major Indices - Opening Prices", ln=True)
+pdf.cell(200, 10, txt="Major Indices - Opening Prices", ln=True)
 pdf.set_font("Arial", '', 12)
 for name in index_data:
     pdf.cell(200, 10, txt=f"{name}: {index_data[name]['Open']}", ln=True)
