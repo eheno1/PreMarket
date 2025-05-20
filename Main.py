@@ -1,6 +1,15 @@
 import yfinance as yf
 from fpdf import FPDF
 from datetime import datetime
+import os
+from dotenv import load_dotenv
+import fredapi
+
+# Load environment variables
+load_dotenv()
+
+# Initialize FRED API
+fred = fredapi.Fred(api_key=os.getenv('FRED_API_KEY'))
 
 # Define the index tickers
 indices = {

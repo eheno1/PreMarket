@@ -1,0 +1,4 @@
+yfinance==0.2.36
+fpdf==1.7.2
+python-dotenv==1.0.1
+fredapi==0.6.1 
