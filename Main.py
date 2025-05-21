@@ -8,6 +8,8 @@ from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
 import pandas as pd
 import time
+import matplotlib.pyplot as plt
+import os
 
 # --- Setup ---
 FRED_API_KEY = '2b04594b42794b8526db7ad5ad7ac29f'
@@ -30,11 +32,47 @@ fred_series = {
     "Consumer Sentiment (UMich)": "UMCSENT"
 }
 
+import requests
+from bs4 import BeautifulSoup
+from datetime import datetime
+
+def get_today_econ_calendar():
+    url = "https://www.marketwatch.com/economy-politics/calendar"
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+    
+    today = datetime.today().strftime('%A, %B %d, %Y')
+    tables = soup.find_all("div", class_="element element--table")
+    
+    target = None
+    for table in tables:
+        header = table.find_previous_sibling("h3")
+        if header and today in header.get_text():
+            target = table
+            break
+
+    if not target:
+        return []
+
+    rows = target.select("table tr")[1:]
+    data = []
+    for row in rows:
+        cols = row.find_all("td")
+        if len(cols) >= 6:
+            data.append([
+                cols[0].text.strip(),
+                cols[1].text.strip(),
+                cols[2].text.strip(),
+                cols[3].text.strip(),
+                cols[4].text.strip(),
+                cols[5].text.strip(),
+            ])
+    return data
+
 exchange_series = {
     "EUR/USD": "DEXUSEU",
     "GBP/USD": "DEXUSUK",
-    "USD/JPY": "DEXJPUS",
-    "AUD/USD": "DEXUSAL",
+        "AUD/USD": "DEXUSAL",
     "USD/CAD": "DEXCAUS",
     "NZD/USD": "DEXUSNZ"
 }
@@ -185,16 +223,128 @@ pdf.ln(10)
 pdf.set_font("Arial", 'B', 14)
 pdf.cell(200, 10, txt="Key Economic Indicators (FRED)", ln=True)
 pdf.set_font("Arial", '', 12)
-for label, value in economic_data.items():
-    pdf.cell(200, 10, txt=f"{label}: {value}", ln=True)
+
+selected_indicators = {
+    "Consumer Price Index (CPI)": "CPIAUCSL",
+    "Producer Price Index (PPI)": "PPIACO",
+    "Industrial Production Index (IPI)": "INDPRO"
+}
+
+# Generate and insert economic indicators chart
+fig, ax = plt.subplots(figsize=(7, 3.5))
+for label, series_id in selected_indicators.items():
+    try:
+        series = fred.get_series(series_id)
+        series = series.dropna().last("5Y")
+        ax.plot(series.index, series.values, label=label, linewidth=1.5)
+    except:
+        continue
+
+ax.set_title("Key Economic Indicators 5Y (CPI, PPI, IPI)", fontsize=10)
+ax.tick_params(axis='x', labelrotation=30, labelsize=7)
+ax.tick_params(axis='y', labelsize=7)
+ax.grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
+ax.legend(fontsize=7, loc='upper left', frameon=True)
+fig.tight_layout()
+
+econ_chart_path = "economic_indicators_chart.png"
+plt.savefig(econ_chart_path)
+plt.close(fig)
+
+# Print values on the left
+x_left = 10
+x_right = 110
+pdf.set_xy(x_left, pdf.get_y())
+for label in selected_indicators:
+    value = get_latest_value(selected_indicators[label])
+    pdf.cell(90, 8, txt=f"{label}: {value}", ln=True)
+
+# Insert chart on the right
+pdf.set_xy(x_right, pdf.get_y() - (8 * len(selected_indicators)))
+pdf.image(econ_chart_path, x=x_right, w=80)
+pdf.set_xy(x_right, pdf.get_y())
+pdf.set_font("Arial", '', 9)
+pdf.set_xy(x_right, pdf.get_y() + 3)
+
+# Clean up
+if os.path.exists(econ_chart_path):
+    os.remove(econ_chart_path)
+
+calendar_data = get_today_econ_calendar()
+if calendar_data:
+    pdf.ln(10)
+    pdf.set_font("Arial", 'B', 14)
+    pdf.cell(200, 10, txt="Today's Economic Calendar", ln=True)
+    pdf.set_font("Arial", 'B', 10)
+    headers = ["Time (ET)", "Report", "Period", "Actual", "Forecast", "Previous"]
+    for h in headers:
+        pdf.cell(33, 8, h, border=1, fill=True)
+    pdf.ln()
+    
+    pdf.set_font("Arial", '', 10)
+    for row in calendar_data:
+        for item in row:
+            pdf.cell(33, 8, item[:15], border=1)
+        pdf.ln()
+else:
+    pdf.ln(10)
+    pdf.set_font("Arial", 'I', 10)
+    pdf.cell(200, 10, txt="No economic calendar data available for today.", ln=True)
+
 
 # --- Exchange Rates ---
 pdf.ln(10)
 pdf.set_font("Arial", 'B', 14)
 pdf.cell(200, 10, txt="Exchange Rates (FRED)", ln=True)
 pdf.set_font("Arial", '', 12)
+
+# Generate and insert chart
+import matplotlib.pyplot as plt
+import os
+
+def create_exchange_rate_chart(data):
+    pairs = list(data.keys())
+    fig, ax = plt.subplots(figsize=(7, 3.5))    
+    for pair in pairs:
+        if pair == "USD/JPY":
+            continue
+        try:
+            series = fred.get_series(exchange_series[pair])
+            series = series.dropna().last("3M")
+            ax.plot(series.index[::5], series.values[::5], label=pair, linewidth=1.5)
+        except:
+            continue
+
+    ax.set_title("Exchange Rates 3M", fontsize=10)
+    ax.tick_params(axis='x', labelrotation=30, labelsize=7)
+    ax.tick_params(axis='y', labelsize=7)
+    ax.grid(True, linestyle='--', linewidth=0.5, alpha=0.7)
+    ax.legend(fontsize=7, loc='upper left', frameon=True)
+    fig.tight_layout()
+
+    chart_path = "exchange_rates_chart.png"
+    plt.savefig(chart_path)
+    plt.close(fig)
+    return chart_path
+
+chart_path = create_exchange_rate_chart(exchange_data)
+
+# Set X/Y for left/right layout
+x_left = 10
+x_right = 110
+pdf.set_xy(x_left, pdf.get_y())
+
+# Print rates on the left
 for label, value in exchange_data.items():
-    pdf.cell(200, 10, txt=f"{label}: {value}", ln=True)
+    pdf.cell(90, 8, txt=f"{label}: {value}", ln=True)
+
+# Insert chart on the right
+pdf.set_xy(x_right, pdf.get_y() - (8 * len(exchange_data)))
+pdf.image(chart_path, x=x_right, w=80)
+
+# Clean up chart file
+if os.path.exists(chart_path):
+    os.remove(chart_path)
 
 # --- Save PDF ---
 pdf.output("PreMarket_Report.pdf")
