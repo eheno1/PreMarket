@@ -230,6 +230,7 @@ selected_indicators = {
     "Industrial Production Index (IPI)": "INDPRO"
 }
 
+
 # Generate and insert economic indicators chart
 fig, ax = plt.subplots(figsize=(7, 3.5))
 for label, series_id in selected_indicators.items():
